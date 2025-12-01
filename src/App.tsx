@@ -1,0 +1,295 @@
+import { useEffect, useState, useRef } from 'react'
+import { Monitor, MonitorCheck, getMonitors, getChecks, getStats, reorderMonitors } from './lib/api'
+import MonitorCard from './components/MonitorCard'
+import AddMonitorForm from './components/AddMonitorForm'
+import LoginForm from './components/LoginForm'
+import ChangePasswordModal from './components/ChangePasswordModal'
+import { verifyPassword, setAuthToken, generateAuthToken, isAuthenticated, clearAuthToken } from './lib/auth'
+import './App.css'
+
+interface MonitorWithStatus extends Monitor {
+  latestCheck?: MonitorCheck
+  uptime?: number
+}
+
+function App() {
+  const [monitors, setMonitors] = useState<MonitorWithStatus[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme')
+    return (saved as 'light' | 'dark') || 'light'
+  })
+
+  // 拖拽排序相关状态
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const dragCounter = useRef(0)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+  }
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      setAuthenticated(true)
+      setLoading(false)
+    } else {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authenticated) {
+      loadMonitors()
+      const interval = setInterval(loadMonitors, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [authenticated])
+
+  async function handleLogin(password: string): Promise<boolean> {
+    const valid = await verifyPassword(password)
+    if (valid) {
+      const token = generateAuthToken()
+      setAuthToken(token)
+      setAuthenticated(true)
+    }
+    return valid
+  }
+
+  function handleLogout() {
+    clearAuthToken()
+    setAuthenticated(false)
+    setMonitors([])
+  }
+
+  async function loadMonitors() {
+    try {
+      const monitorsData = await getMonitors()
+
+      const monitorsWithStatus = await Promise.all(
+        monitorsData.map(async (monitor) => {
+          try {
+            const checks = await getChecks(monitor.id)
+            const stats = await getStats(monitor.id)
+
+            const latestCheck = checks.length > 0 ? checks[0] : undefined
+
+            return {
+              ...monitor,
+              latestCheck,
+              uptime: stats.uptime_percentage
+            }
+          } catch (error) {
+            console.error(`Error loading data for monitor ${monitor.id}:`, error)
+            return {
+              ...monitor,
+              latestCheck: undefined,
+              uptime: 0
+            }
+          }
+        })
+      )
+
+      setMonitors(monitorsWithStatus)
+    } catch (error) {
+      console.error('Error loading monitors:', error)
+    }
+  }
+
+  function handleEdit(monitor: Monitor) {
+    setEditingMonitor(monitor)
+    setShowAddForm(true)
+  }
+
+  function handleCancelEdit() {
+    setEditingMonitor(null)
+    setShowAddForm(false)
+  }
+
+  // 拖拽排序处理函数
+  function handleDragStart(e: React.DragEvent, id: string) {
+    setDraggedId(id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id)
+  }
+
+  function handleDragEnd() {
+    setDraggedId(null)
+    setDragOverId(null)
+    dragCounter.current = 0
+  }
+
+  function handleDragEnter(e: React.DragEvent, id: string) {
+    e.preventDefault()
+    dragCounter.current++
+    if (id !== draggedId) {
+      setDragOverId(id)
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) {
+      setDragOverId(null)
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  async function handleDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault()
+    setDragOverId(null)
+    dragCounter.current = 0
+
+    if (!draggedId || draggedId === targetId) return
+
+    const draggedIndex = monitors.findIndex(m => m.id === draggedId)
+    const targetIndex = monitors.findIndex(m => m.id === targetId)
+
+    if (draggedIndex === -1 || targetIndex === -1) return
+
+    // 重新排序
+    const newMonitors = [...monitors]
+    const [draggedItem] = newMonitors.splice(draggedIndex, 1)
+    newMonitors.splice(targetIndex, 0, draggedItem)
+
+    // 更新本地状态
+    setMonitors(newMonitors)
+    setDraggedId(null)
+
+    // 保存到服务器
+    try {
+      const orders = newMonitors.map((m, index) => ({
+        id: m.id,
+        sort_order: index
+      }))
+      await reorderMonitors(orders)
+    } catch (error) {
+      console.error('Error saving order:', error)
+      loadMonitors() // 失败时重新加载
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+      </div>
+    )
+  }
+
+  if (!authenticated) {
+    return <LoginForm onLogin={handleLogin} />
+  }
+
+  return (
+    <div className="app">
+      <header className="header">
+        <div className="header-content">
+          <div>
+            <h1 className="header-title">CloudEye</h1>
+            <p className="header-subtitle">服务状态监控</p>
+          </div>
+          <div className="header-actions">
+            <button
+              className="btn-add-monitor"
+              onClick={() => {
+                if (showAddForm) {
+                  handleCancelEdit()
+                } else {
+                  setShowAddForm(true)
+                }
+              }}
+            >
+              {showAddForm ? '取消' : '+ 添加监控'}
+            </button>
+            <button className="btn-theme" onClick={toggleTheme} title={theme === 'light' ? '切换到深色模式' : '切换到浅色模式'}>
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <button className="btn-change-password" onClick={() => setShowChangePassword(true)}>
+              修改密码
+            </button>
+            <button className="btn-logout" onClick={handleLogout}>
+              退出登录
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="main-content">
+        {monitors.length === 0 ? (
+          <div className="empty-state">
+            <p>暂无监控任务</p>
+            <p className="empty-hint">点击上方按钮添加第一个监控</p>
+          </div>
+        ) : (
+          <div className="monitors-grid">
+            {monitors.map(monitor => (
+              <div
+                key={monitor.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, monitor.id)}
+                onDragEnd={handleDragEnd}
+                onDragEnter={(e) => handleDragEnter(e, monitor.id)}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, monitor.id)}
+                className={`monitor-drag-wrapper ${draggedId === monitor.id ? 'dragging' : ''} ${dragOverId === monitor.id ? 'drag-over' : ''}`}
+              >
+                <MonitorCard
+                  monitor={monitor}
+                  onUpdate={loadMonitors}
+                  onEdit={() => handleEdit(monitor)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      <footer className="footer">
+        <p>Docker 部署版 | Express + SQLite</p>
+      </footer>
+
+      {showChangePassword && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={() => {
+            alert('密码修改成功！请使用新密码重新登录。')
+            handleLogout()
+          }}
+        />
+      )}
+
+      {showAddForm && (
+        <div className="modal-overlay" onClick={handleCancelEdit}>
+          <div className="modal-content modal-form" onClick={e => e.stopPropagation()}>
+            <AddMonitorForm
+              editMonitor={editingMonitor}
+              onSuccess={() => {
+                handleCancelEdit()
+                loadMonitors()
+              }}
+              onCancel={handleCancelEdit}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default App
