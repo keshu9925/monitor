@@ -13,20 +13,6 @@
 - 🔔 **Webhook 通知** - 自定义 Webhook 通知（支持 Discord、Slack 等）
 - 🔍 **关键词检测** - 检测页面是否包含/不包含特定关键词
 - ⏰ **定时检测** - 每 5 分钟自动检测
-- 🎨 **现代化界面** - 支持亮色/暗色主题切换
-- 🔒 **密码保护** - 安全的访问控制
-- 📱 **响应式设计** - 完美支持移动端
-
-## 🚀 快速开始
-
-### 使用预构建镜像（推荐）
-```yaml
-version: '3.8'
-
-services:
-  uptime-monitor:
-    image: ghcr.io/debbide/monitor:latest
-    container_name: uptime-monitor
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -115,7 +101,6 @@ https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 - **linux/amd64** - x86_64 架构（普通 PC、服务器）
 - **linux/arm64** - ARM64 架构（树莓派 4、Apple M1/M2 等）
-- **linux/arm/v7** - ARM v7 架构（树莓派 3 等）
 
 Docker 会自动选择适合你系统的镜像版本。
 

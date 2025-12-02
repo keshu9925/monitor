@@ -94,7 +94,6 @@ npm run preview
 - 自动构建多平台 Docker 镜像:
   - `linux/amd64` (x86_64)
   - `linux/arm64` (ARM64)
-  - `linux/arm/v7` (ARM v7)
 - 推送到 GitHub Container Registry (ghcr.io)
 - 支持构建缓存优化
 
