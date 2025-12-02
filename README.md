@@ -158,9 +158,6 @@ npm run type-check
 - **容器化**: Docker + Docker Compose
 - **CI/CD**: GitHub Actions
 
-## 📝 许可证
-
-MIT License
 
 ## 🤝 贡献
 

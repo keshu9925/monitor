@@ -1,14 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
+import { Toaster, toast } from 'react-hot-toast'
 import { Monitor, MonitorCheck, getMonitors, getChecks, getStats, reorderMonitors } from './lib/api'
 import MonitorCard from './components/MonitorCard'
 import AddMonitorForm from './components/AddMonitorForm'
 import LoginForm from './components/LoginForm'
 import ChangePasswordModal from './components/ChangePasswordModal'
+import DashboardStats from './components/DashboardStats'
 import { verifyPassword, setAuthToken, generateAuthToken, isAuthenticated, clearAuthToken } from './lib/auth'
 import './App.css'
 
-interface MonitorWithStatus extends Monitor {
+export interface MonitorWithStatus extends Monitor {
   latestCheck?: MonitorCheck
+  recentChecks?: MonitorCheck[]
   uptime?: number
 }
 
@@ -61,6 +64,9 @@ function App() {
       const token = generateAuthToken()
       setAuthToken(token)
       setAuthenticated(true)
+      toast.success('欢迎回来！')
+    } else {
+      toast.error('密码错误')
     }
     return valid
   }
@@ -69,6 +75,7 @@ function App() {
     clearAuthToken()
     setAuthenticated(false)
     setMonitors([])
+    toast.success('已退出登录')
   }
 
   async function loadMonitors() {
@@ -82,10 +89,13 @@ function App() {
             const stats = await getStats(monitor.id)
 
             const latestCheck = checks.length > 0 ? checks[0] : undefined
+            // 获取最近20条记录并反转（用于图表从左到右显示）
+            const recentChecks = checks.slice(0, 20).reverse()
 
             return {
               ...monitor,
               latestCheck,
+              recentChecks,
               uptime: stats.uptime_percentage
             }
           } catch (error) {
@@ -93,6 +103,7 @@ function App() {
             return {
               ...monitor,
               latestCheck: undefined,
+              recentChecks: [],
               uptime: 0
             }
           }
@@ -102,6 +113,7 @@ function App() {
       setMonitors(monitorsWithStatus)
     } catch (error) {
       console.error('Error loading monitors:', error)
+      toast.error('加载监控数据失败')
     }
   }
 
@@ -179,6 +191,7 @@ function App() {
       await reorderMonitors(orders)
     } catch (error) {
       console.error('Error saving order:', error)
+      toast.error('保存排序失败')
       loadMonitors() // 失败时重新加载
     }
   }
@@ -197,6 +210,7 @@ function App() {
 
   return (
     <div className="app">
+      <Toaster position="top-right" />
       <header className="header">
         <div className="header-content">
           <div>
@@ -230,6 +244,7 @@ function App() {
       </header>
 
       <main className="main-content">
+        <DashboardStats monitors={monitors} />
         {monitors.length === 0 ? (
           <div className="empty-state">
             <p>暂无监控任务</p>
@@ -268,7 +283,7 @@ function App() {
         <ChangePasswordModal
           onClose={() => setShowChangePassword(false)}
           onSuccess={() => {
-            alert('密码修改成功！请使用新密码重新登录。')
+            toast.success('密码修改成功！请使用新密码重新登录。')
             handleLogout()
           }}
         />
@@ -280,6 +295,7 @@ function App() {
             <AddMonitorForm
               editMonitor={editingMonitor}
               onSuccess={() => {
+                toast.success(editingMonitor ? '修改成功' : '添加成功')
                 handleCancelEdit()
                 loadMonitors()
               }}

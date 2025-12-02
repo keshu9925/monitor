@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'react-hot-toast'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import { Monitor, MonitorCheck, KomariServer, deleteMonitor, testWebhook, checkNow, getKomariStatus } from '../lib/api'
 
 // 从国旗 emoji 提取国家代码
@@ -23,7 +25,7 @@ function getFlagUrl(region: string): string {
 }
 
 interface MonitorCardProps {
-  monitor: Monitor & { latestCheck?: MonitorCheck; uptime?: number }
+  monitor: Monitor & { latestCheck?: MonitorCheck; recentChecks?: MonitorCheck[]; uptime?: number }
   onUpdate: () => void
   onEdit: () => void
 }
@@ -44,6 +46,12 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
   const status = komariRealTimeStatus || monitor.latestCheck?.status || 'unknown'
   const statusColor = status === 'up' ? '#10b981' : status === 'down' ? '#ef4444' : '#6b7280'
   const statusText = status === 'up' ? '正常' : status === 'down' ? '故障' : '未知'
+
+  // 准备图表数据
+  const chartData = monitor.recentChecks?.map(check => ({
+    time: new Date(check.checked_at).toLocaleTimeString(),
+    value: check.response_time
+  })) || []
 
   useEffect(() => {
     if (monitor.check_type === 'komari') {
@@ -69,10 +77,11 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
     setIsDeleting(true)
     try {
       await deleteMonitor(monitor.id)
+      toast.success('删除成功')
       onUpdate()
     } catch (error) {
       console.error('Error deleting monitor:', error)
-      alert('删除失败')
+      toast.error('删除失败')
     } finally {
       setIsDeleting(false)
     }
@@ -80,7 +89,7 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
 
   async function handleTestWebhook() {
     if (!monitor.webhook_url) {
-      alert('此监控未配置Webhook')
+      toast.error('此监控未配置Webhook')
       return
     }
 
@@ -89,12 +98,12 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
       const result = await testWebhook(monitor.id)
 
       if (result.success) {
-        alert('Webhook测试成功！请检查接收端是否收到通知。')
+        toast.success('Webhook测试成功！')
       } else {
-        alert(`Webhook测试失败: ${result.message || '未知错误'}`)
+        toast.error(`Webhook测试失败: ${result.message || '未知错误'}`)
       }
     } catch (err: any) {
-      alert(`Webhook测试失败: ${err.message || '请稍后重试'}`)
+      toast.error(`Webhook测试失败: ${err.message || '请稍后重试'}`)
     } finally {
       setIsTesting(false)
     }
@@ -107,9 +116,10 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
       if (monitor.check_type === 'komari') {
         await loadKomariServers()
       }
+      toast.success('检查已完成')
       onUpdate()
     } catch (err: any) {
-      alert(`检查失败: ${err.message || '请稍后重试'}`)
+      toast.error(`检查失败: ${err.message || '请稍后重试'}`)
     } finally {
       setIsChecking(false)
     }
@@ -181,6 +191,42 @@ export default function MonitorCard({ monitor, onUpdate, onEdit }: MonitorCardPr
           </span>
         </div>
       </div>
+
+      {/* Sparkline Chart */}
+      {chartData.length > 1 && (
+        <div className="monitor-chart" style={{ height: 60, marginTop: 16 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id={`gradient-${monitor.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Tooltip
+                contentStyle={{
+                  background: 'rgba(0,0,0,0.8)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#fff'
+                }}
+                itemStyle={{ color: '#fff' }}
+                labelStyle={{ display: 'none' }}
+                formatter={(value: number) => [`${value}ms`, '响应时间']}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#6366f1"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill={`url(#gradient-${monitor.id})`}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {monitor.check_type === 'komari' && (
         <div className="komari-servers">

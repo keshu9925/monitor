@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "tsx watch server/index.ts",
-    "dev:client": "vite",
+    "dev:client": "vite --host",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
@@ -20,7 +20,10 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "framer-motion": "^12.23.25",
     "node-cron": "^3.0.3",
+    "react-hot-toast": "^2.6.0",
+    "recharts": "^3.5.1",
     "sql.js": "^1.11.0"
   },
   "devDependencies": {

@@ -10,16 +10,16 @@ interface AddMonitorFormProps {
 export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: AddMonitorFormProps) {
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
-  const [interval, setInterval] = useState(5)
-  const [intervalMax, setIntervalMax] = useState<number | null>(null)
+  const [interval, setInterval] = useState('5')
+  const [intervalMax, setIntervalMax] = useState('')
   const [enableRandomInterval, setEnableRandomInterval] = useState(false)
   const [checkType, setCheckType] = useState<'http' | 'tcp' | 'komari'>('http')
   const [checkMethod, setCheckMethod] = useState<'GET' | 'HEAD' | 'POST'>('GET')
-  const [checkTimeout, setCheckTimeout] = useState(30)
+  const [checkTimeout, setCheckTimeout] = useState('30')
   const [expectedStatusCodes, setExpectedStatusCodes] = useState('200,201,204,301,302')
   const [expectedKeyword, setExpectedKeyword] = useState('')
   const [forbiddenKeyword, setForbiddenKeyword] = useState('')
-  const [komariOfflineThreshold, setKomariOfflineThreshold] = useState(3)
+  const [komariOfflineThreshold, setKomariOfflineThreshold] = useState('3')
   const [webhookUrl, setWebhookUrl] = useState('')
   const [contentType, setContentType] = useState('application/json')
   const [headers, setHeaders] = useState('')
@@ -33,16 +33,16 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
     if (editMonitor) {
       setName(editMonitor.name)
       setUrl(editMonitor.url)
-      setInterval(editMonitor.check_interval)
-      setIntervalMax(editMonitor.check_interval_max)
+      setInterval(String(editMonitor.check_interval))
+      setIntervalMax(editMonitor.check_interval_max ? String(editMonitor.check_interval_max) : '')
       setEnableRandomInterval(!!editMonitor.check_interval_max)
       setCheckType(editMonitor.check_type || 'http')
       setCheckMethod(editMonitor.check_method || 'GET')
-      setCheckTimeout(editMonitor.check_timeout || 30)
+      setCheckTimeout(String(editMonitor.check_timeout || 30))
       setExpectedStatusCodes(editMonitor.expected_status_codes || '200,201,204,301,302')
       setExpectedKeyword(editMonitor.expected_keyword || '')
       setForbiddenKeyword(editMonitor.forbidden_keyword || '')
-      setKomariOfflineThreshold(editMonitor.komari_offline_threshold || 3)
+      setKomariOfflineThreshold(String(editMonitor.komari_offline_threshold || 3))
       setWebhookUrl(editMonitor.webhook_url || '')
       setContentType(editMonitor.webhook_content_type || 'application/json')
       setHeaders(editMonitor.webhook_headers || '')
@@ -82,18 +82,23 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
 
     setIsSubmitting(true)
     try {
+      const intervalNum = parseInt(interval) || 5
+      const intervalMaxNum = intervalMax ? parseInt(intervalMax) : null
+      const timeoutNum = parseInt(checkTimeout) || 30
+      const thresholdNum = parseInt(komariOfflineThreshold) || 3
+
       const monitorData = {
         name: name.trim(),
         url: url.trim(),
-        check_interval: interval,
-        check_interval_max: (checkType === 'http' && enableRandomInterval && intervalMax && intervalMax > interval) ? intervalMax : null,
+        check_interval: intervalNum,
+        check_interval_max: (checkType === 'http' && enableRandomInterval && intervalMaxNum && intervalMaxNum > intervalNum) ? intervalMaxNum : null,
         check_type: checkType,
         check_method: checkMethod,
-        check_timeout: checkTimeout,
+        check_timeout: timeoutNum,
         expected_status_codes: expectedStatusCodes.trim() || '200,201,204,301,302',
         expected_keyword: expectedKeyword.trim() || undefined,
         forbidden_keyword: forbiddenKeyword.trim() || undefined,
-        komari_offline_threshold: komariOfflineThreshold,
+        komari_offline_threshold: thresholdNum,
         webhook_url: webhookUrl.trim() || undefined,
         webhook_content_type: contentType,
         webhook_headers: Object.keys(parsedHeaders).length > 0 ? parsedHeaders : undefined,
@@ -120,16 +125,16 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
   function resetForm() {
     setName('')
     setUrl('')
-    setInterval(5)
-    setIntervalMax(null)
+    setInterval('5')
+    setIntervalMax('')
     setEnableRandomInterval(false)
     setCheckType('http')
     setCheckMethod('GET')
-    setCheckTimeout(30)
+    setCheckTimeout('30')
     setExpectedStatusCodes('200,201,204,301,302')
     setExpectedKeyword('')
     setForbiddenKeyword('')
-    setKomariOfflineThreshold(3)
+    setKomariOfflineThreshold('3')
     setWebhookUrl('')
     setContentType('application/json')
     setHeaders('')
@@ -215,7 +220,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
               min="1"
               max="1440"
               value={interval}
-              onChange={(e) => setInterval(Number(e.target.value))}
+              onChange={(e) => setInterval(e.target.value)}
             />
           </div>
 
@@ -225,10 +230,10 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
               <input
                 id="intervalMax"
                 type="number"
-                min={interval + 1}
+                min={(parseInt(interval) || 1) + 1}
                 max="1440"
-                value={intervalMax || interval + 5}
-                onChange={(e) => setIntervalMax(Number(e.target.value))}
+                value={intervalMax || (parseInt(interval) + 5)}
+                onChange={(e) => setIntervalMax(e.target.value)}
               />
             </div>
           )}
@@ -241,7 +246,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
               min="5"
               max="120"
               value={checkTimeout}
-              onChange={(e) => setCheckTimeout(Number(e.target.value))}
+              onChange={(e) => setCheckTimeout(e.target.value)}
             />
           </div>
         </div>
@@ -255,7 +260,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
                 onChange={(e) => {
                   setEnableRandomInterval(e.target.checked)
                   if (e.target.checked && !intervalMax) {
-                    setIntervalMax(interval + 5)
+                    setIntervalMax(String((parseInt(interval) || 5) + 5))
                   }
                 }}
               />
@@ -315,7 +320,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
                 min="1"
                 max="60"
                 value={komariOfflineThreshold}
-                onChange={(e) => setKomariOfflineThreshold(Number(e.target.value))}
+                onChange={(e) => setKomariOfflineThreshold(e.target.value)}
               />
               <span className="form-hint">服务器超过此时间未更新状态则判定为离线</span>
             </div>
