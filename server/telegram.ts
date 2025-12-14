@@ -15,9 +15,9 @@ let currentToken: string = ''
 const processedMessages = new Set<string>()
 const MAX_PROCESSED_MESSAGES = 1000
 
-// 最近状态变更记录（防止短时间内重复处理）
+// 最近状态变更记录（防止短时间内重复处理，使用 TG 消息时间戳）
 const recentChanges = new Map<string, number>()
-const CHANGE_COOLDOWN = 60 * 1000 // 1分钟冷却
+const CHANGE_COOLDOWN = 60 // 1分钟冷却（单位：秒，与 TG msg.date 一致）
 
 /**
  * 获取存储的 TG Bot Token
@@ -176,11 +176,22 @@ async function processMonitorMessage(
     msg: TelegramBot.Message
 ) {
     const textLower = text.toLowerCase()
-    const monitorNameLower = monitor.name.toLowerCase()
 
-    // 首先检查消息是否包含监控名称（必须匹配）
-    if (!textLower.includes(monitorNameLower)) {
-        return // 不包含监控名称，跳过
+    // 使用 tg_server_name 进行匹配（支持多个服务器名称，逗号分隔）
+    // 如果未设置 tg_server_name，则跳过匹配
+    const serverNames = (monitor.tg_server_name || '')
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(s => s)
+
+    if (serverNames.length === 0) {
+        return // 未设置服务器名称，跳过
+    }
+
+    // 检查消息是否包含任意一个服务器名称
+    const matchedServerName = serverNames.find(name => textLower.includes(name))
+    if (!matchedServerName) {
+        return // 不包含任何服务器名称，跳过
     }
 
     // 解析关键词
@@ -194,21 +205,22 @@ async function processMonitorMessage(
         .map(k => k.trim().toLowerCase())
         .filter(k => k)
 
-    // 检测状态（名称已匹配，再检查关键词）
+    // 检测状态（服务器名称已匹配，再检查关键词）
     const isOffline = offlineKeywords.some(kw => textLower.includes(kw))
     const isOnline = onlineKeywords.some(kw => textLower.includes(kw))
 
     if (!isOffline && !isOnline) {
-        return // 名称匹配但不包含状态关键词
+        return // 服务器名称匹配但不包含状态关键词
     }
 
     // 如果同时包含离线和上线关键词，以离线优先
     const newStatus = isOffline ? 'down' : 'up'
 
-    // 防重复：检查冷却时间
+    // 防重复：使用 TG 消息时间戳检查冷却时间
+    const msgTimestamp = msg.date // TG 消息时间戳（秒级 Unix 时间戳）
     const changeKey = `${monitor.id}_${newStatus}`
     const lastChange = recentChanges.get(changeKey)
-    if (lastChange && Date.now() - lastChange < CHANGE_COOLDOWN) {
+    if (lastChange && msgTimestamp - lastChange < CHANGE_COOLDOWN) {
         return // 冷却中
     }
 
@@ -223,10 +235,10 @@ async function processMonitorMessage(
         return
     }
 
-    // 记录本次变更
-    recentChanges.set(changeKey, Date.now())
+    // 记录本次变更（使用 TG 消息时间戳）
+    recentChanges.set(changeKey, msgTimestamp)
 
-    console.log(`📩 [${chatTitle}] 检测到 "${monitor.name}" 状态变更: ${newStatus.toUpperCase()}`)
+    console.log(`📩 [${chatTitle}] 检测到 "${monitor.name}" (服务器: ${matchedServerName}) 状态变更: ${newStatus.toUpperCase()}`)
     console.log(`   消息内容: ${text.substring(0, 100)}${text.length > 100 ? '...' : ''}`)
 
     // 保存检查记录
@@ -258,9 +270,10 @@ async function processMonitorMessage(
         const confirmMsg = [
             `${statusEmoji} **已收到通知**`,
             `📊 监控: ${monitor.name}`,
+            `🖥️ 服务器: ${matchedServerName}`,
             `📌 状态: ${statusText} → 监控系统已更新`,
             `⏰ ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
-        ].join('\n')
+        ].join('\\n')
 
         try {
             await bot.sendMessage(msg.chat.id, confirmMsg, { parse_mode: 'Markdown' })
@@ -310,11 +323,7 @@ async function handleUpStatus(monitor: Monitor, timestamp: string) {
             'UPDATE incidents SET resolved_at = ?, duration_seconds = ? WHERE id = ?',
             [timestamp, durationSeconds, incident.id]
         )
-
-        // 发送恢复通知
-        if (monitor.webhook_url) {
-            await sendWebhook(monitor, 'up', '', timestamp)
-        }
+        // 注意：上线恢复时不发送 Webhook，避免触发自动启动脚本重复执行
     }
 }
 
@@ -330,14 +339,45 @@ async function sendWebhook(
     if (!monitor.webhook_url) return
 
     try {
-        const payload = {
-            monitor: monitor.name,
-            url: monitor.url,
+        const variables = {
+            monitor_name: monitor.name,
+            monitor_url: monitor.url || '',
             status,
+            error: message.substring(0, 200),
             timestamp,
-            message: status === 'down'
-                ? `🚨 ${monitor.name} is DOWN! ${message.substring(0, 100)}`
-                : `✅ ${monitor.name} is back UP!`
+            response_time: '0',
+            status_code: '0'
+        }
+
+        let payload: any
+
+        // 如果配置了自定义 body，使用模板替换
+        if (monitor.webhook_body) {
+            try {
+                const bodyTemplate = JSON.parse(monitor.webhook_body)
+                payload = processWebhookBody(bodyTemplate, variables)
+            } catch {
+                // 解析失败，使用默认格式
+                payload = {
+                    monitor: monitor.name,
+                    url: monitor.url,
+                    status,
+                    timestamp,
+                    message: status === 'down'
+                        ? `🚨 ${monitor.name} is DOWN! ${message.substring(0, 100)}`
+                        : `✅ ${monitor.name} is back UP!`
+                }
+            }
+        } else {
+            payload = {
+                monitor: monitor.name,
+                url: monitor.url,
+                status,
+                timestamp,
+                message: status === 'down'
+                    ? `🚨 ${monitor.name} is DOWN! ${message.substring(0, 100)}`
+                    : `✅ ${monitor.name} is back UP!`
+            }
         }
 
         let headers: Record<string, string> = {
@@ -359,6 +399,25 @@ async function sendWebhook(
     } catch (error) {
         console.error('❌ Webhook 发送失败:', error)
     }
+}
+
+// 辅助函数：处理 Webhook Body 模板变量替换
+function processWebhookBody(body: Record<string, any>, variables: Record<string, any>): Record<string, any> {
+    const processed: Record<string, any> = {}
+    for (const [key, value] of Object.entries(body)) {
+        if (typeof value === 'string') {
+            let result = value
+            for (const [k, v] of Object.entries(variables)) {
+                result = result.replace(new RegExp(`{{${k}}}`, 'g'), String(v))
+            }
+            processed[key] = result
+        } else if (typeof value === 'object' && value !== null) {
+            processed[key] = processWebhookBody(value, variables)
+        } else {
+            processed[key] = value
+        }
+    }
+    return processed
 }
 
 /**

@@ -35,8 +35,8 @@ app.post('/api/monitors', async (req, res) => {
     const id = crypto.randomUUID()
 
     run(
-      `INSERT INTO monitors (id, name, url, check_interval, check_interval_max, check_type, check_method, check_timeout, expected_status_codes, expected_keyword, forbidden_keyword, komari_offline_threshold, tg_chat_id, tg_offline_keywords, tg_online_keywords, webhook_url, webhook_content_type, webhook_headers, webhook_body, webhook_username, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO monitors (id, name, url, check_interval, check_interval_max, check_type, check_method, check_timeout, expected_status_codes, expected_keyword, forbidden_keyword, komari_offline_threshold, tg_chat_id, tg_server_name, tg_offline_keywords, tg_online_keywords, webhook_url, webhook_content_type, webhook_headers, webhook_body, webhook_username, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
         body.name,
@@ -51,6 +51,7 @@ app.post('/api/monitors', async (req, res) => {
         body.forbidden_keyword || null,
         parseInt(body.komari_offline_threshold) || 3,
         body.tg_chat_id || null,
+        body.tg_server_name || null,
         body.tg_offline_keywords || null,
         body.tg_online_keywords || null,
         body.webhook_url || null,
@@ -121,6 +122,7 @@ app.put('/api/monitors/:id', (req, res) => {
         forbidden_keyword = ?,
         komari_offline_threshold = ?,
         tg_chat_id = ?,
+        tg_server_name = ?,
         tg_offline_keywords = ?,
         tg_online_keywords = ?,
         webhook_url = ?,
@@ -144,6 +146,7 @@ app.put('/api/monitors/:id', (req, res) => {
         body.forbidden_keyword || null,
         parseInt(body.komari_offline_threshold) || 3,
         body.tg_chat_id || null,
+        body.tg_server_name || null,
         body.tg_offline_keywords || null,
         body.tg_online_keywords || null,
         body.webhook_url || null,

@@ -14,6 +14,7 @@ export interface Monitor {
   forbidden_keyword: string | null
   komari_offline_threshold: number
   tg_chat_id: string | null
+  tg_server_name: string | null
   tg_offline_keywords: string | null
   tg_online_keywords: string | null
   webhook_url: string | null
@@ -94,6 +95,7 @@ export async function createMonitor(monitor: {
   forbidden_keyword?: string
   komari_offline_threshold?: number
   tg_chat_id?: string
+  tg_server_name?: string
   tg_offline_keywords?: string
   tg_online_keywords?: string
   webhook_url?: string
@@ -127,6 +129,7 @@ export async function updateMonitor(id: string, monitor: {
   forbidden_keyword?: string
   komari_offline_threshold?: number
   tg_chat_id?: string
+  tg_server_name?: string
   tg_offline_keywords?: string
   tg_online_keywords?: string
   webhook_url?: string

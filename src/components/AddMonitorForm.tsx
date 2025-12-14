@@ -22,6 +22,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
   const [komariOfflineThreshold, setKomariOfflineThreshold] = useState('3')
   // Telegram 相关状态
   const [tgChatId, setTgChatId] = useState('')
+  const [tgServerName, setTgServerName] = useState('')
   const [tgOfflineKeywords, setTgOfflineKeywords] = useState('离线,offline,down,掉线')
   const [tgOnlineKeywords, setTgOnlineKeywords] = useState('上线,online,up,恢复')
   const [webhookUrl, setWebhookUrl] = useState('')
@@ -48,6 +49,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
       setForbiddenKeyword(editMonitor.forbidden_keyword || '')
       setKomariOfflineThreshold(String(editMonitor.komari_offline_threshold || 3))
       setTgChatId(editMonitor.tg_chat_id || '')
+      setTgServerName(editMonitor.tg_server_name || '')
       setTgOfflineKeywords(editMonitor.tg_offline_keywords || '离线,offline,down,掉线')
       setTgOnlineKeywords(editMonitor.tg_online_keywords || '上线,online,up,恢复')
       setWebhookUrl(editMonitor.webhook_url || '')
@@ -120,6 +122,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
         forbidden_keyword: forbiddenKeyword.trim() || undefined,
         komari_offline_threshold: thresholdNum,
         tg_chat_id: tgChatId.trim() || undefined,
+        tg_server_name: tgServerName.trim() || undefined,
         tg_offline_keywords: tgOfflineKeywords.trim() || undefined,
         tg_online_keywords: tgOnlineKeywords.trim() || undefined,
         webhook_url: webhookUrl.trim() || undefined,
@@ -160,6 +163,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
     setForbiddenKeyword('')
     setKomariOfflineThreshold('3')
     setTgChatId('')
+    setTgServerName('')
     setTgOfflineKeywords('离线,offline,down,掉线')
     setTgOnlineKeywords('上线,online,up,恢复')
     setWebhookUrl('')
@@ -411,6 +415,18 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
               <span className="form-hint">Telegram 群组 ID（负数），可通过 @userinfobot 获取</span>
             </div>
             <div className="form-group">
+              <label htmlFor="tgServerName">服务器名称</label>
+              <input
+                id="tgServerName"
+                type="text"
+                value={tgServerName}
+                onChange={(e) => setTgServerName(e.target.value)}
+                placeholder="例如: streamlit,my-server"
+                required
+              />
+              <span className="form-hint">消息中需包含的服务器名称，多个用逗号分隔（从通知消息的"主机名称"字段提取）</span>
+            </div>
+            <div className="form-group">
               <label htmlFor="tgOfflineKeywords">离线关键词</label>
               <input
                 id="tgOfflineKeywords"
@@ -437,7 +453,8 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
                 <strong>使用说明：</strong><br />
                 1. 先在顶栏 🤖 按钮配置 Bot Token<br />
                 2. 将 Bot 加入到监控的群组<br />
-                3. 填写群组 ID 后可点击下方按钮测试连通性
+                3. 填写群组 ID 和服务器名称（从通知消息中提取）<br />
+                4. 根据通知消息格式设置离线/上线关键词
               </span>
             </div>
           </>

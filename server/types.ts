@@ -13,6 +13,7 @@ export interface Monitor {
   komari_offline_threshold: number
   // Telegram 相关字段
   tg_chat_id: string | null
+  tg_server_name: string | null  // 用于消息匹配的服务器名称
   tg_offline_keywords: string | null
   tg_online_keywords: string | null
   webhook_url: string | null
