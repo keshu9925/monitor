@@ -1,5 +1,6 @@
 import { queryAll, queryFirst, run, saveDatabase } from './db.js'
 import { Monitor, MonitorCheck, KomariApiResponse } from './types.js'
+import { sendTgMessage } from './telegram.js'
 import crypto from 'crypto'
 
 // 缓存最新检查结果
@@ -357,6 +358,21 @@ async function handleDownStatus(monitor: Monitor, check: MonitorCheck) {
     if (monitor.webhook_url) {
       await sendWebhookNotification(monitor, check, 'down')
     }
+
+    // Komari 监控：发送 TG 群组通知
+    if (monitor.check_type === 'komari' && monitor.tg_notify_chat_id) {
+      const timeStr = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+      const msg = [
+        `🔴 *CloudEye 告警通知*`,
+        ``,
+        `📊 *监控项:* ${monitor.name}`,
+        `🚨 *状态:* 离线`,
+        `⚠️ *原因:* ${check.error_message || '未知'}`,
+        ``,
+        `\`⏰ ${timeStr}\``
+      ].join('\n')
+      await sendTgMessage(monitor.tg_notify_chat_id, msg)
+    }
   }
 }
 
@@ -383,6 +399,22 @@ async function handleUpStatus(monitor: Monitor, check: MonitorCheck) {
         error_message: '',
         checked_at: resolvedAt
       }, 'recovered')
+    }
+
+    // Komari 监控：发送 TG 群组恢复通知
+    if (monitor.check_type === 'komari' && monitor.tg_notify_chat_id) {
+      const timeStr = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+      const durationMin = Math.floor(durationSeconds / 60)
+      const msg = [
+        `🟢 *CloudEye 恢复通知*`,
+        ``,
+        `📊 *监控项:* ${monitor.name}`,
+        `✅ *状态:* 已恢复`,
+        `⏱ *故障时长:* ${durationMin} 分钟`,
+        ``,
+        `\`⏰ ${timeStr}\``
+      ].join('\n')
+      await sendTgMessage(monitor.tg_notify_chat_id, msg)
     }
   }
 }

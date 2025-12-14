@@ -36,8 +36,8 @@ app.post('/api/monitors', async (req, res) => {
     const id = crypto.randomUUID()
 
     run(
-      `INSERT INTO monitors (id, name, url, check_interval, check_interval_max, check_type, check_method, check_timeout, expected_status_codes, expected_keyword, forbidden_keyword, komari_offline_threshold, tg_chat_id, tg_server_name, tg_offline_keywords, tg_online_keywords, webhook_url, webhook_content_type, webhook_headers, webhook_body, webhook_username, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO monitors (id, name, url, check_interval, check_interval_max, check_type, check_method, check_timeout, expected_status_codes, expected_keyword, forbidden_keyword, komari_offline_threshold, tg_chat_id, tg_server_name, tg_offline_keywords, tg_online_keywords, tg_notify_chat_id, webhook_url, webhook_content_type, webhook_headers, webhook_body, webhook_username, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
         body.name,
@@ -55,6 +55,7 @@ app.post('/api/monitors', async (req, res) => {
         body.tg_server_name || null,
         body.tg_offline_keywords || null,
         body.tg_online_keywords || null,
+        body.tg_notify_chat_id || null,
         body.webhook_url || null,
         body.webhook_content_type || 'application/json',
         body.webhook_headers && typeof body.webhook_headers === 'object' ? JSON.stringify(body.webhook_headers) : (body.webhook_headers || null),
@@ -126,6 +127,7 @@ app.put('/api/monitors/:id', (req, res) => {
         tg_server_name = ?,
         tg_offline_keywords = ?,
         tg_online_keywords = ?,
+        tg_notify_chat_id = ?,
         webhook_url = ?,
         webhook_content_type = ?,
         webhook_headers = ?,
@@ -150,6 +152,7 @@ app.put('/api/monitors/:id', (req, res) => {
         body.tg_server_name || null,
         body.tg_offline_keywords || null,
         body.tg_online_keywords || null,
+        body.tg_notify_chat_id || null,
         body.webhook_url || null,
         body.webhook_content_type || 'application/json',
         body.webhook_headers && typeof body.webhook_headers === 'object' ? JSON.stringify(body.webhook_headers) : (body.webhook_headers || null),
@@ -479,6 +482,252 @@ app.get('/poll', (req, res) => {
   const since = (req.query.since as string) || '0'
   const result = pollRefresh(since)
   res.json(result)
+})
+
+// ==================== Komari 直接通知服务 ====================
+
+// 获取 Komari 通知配置
+app.get('/api/settings/komari-notify', (req, res) => {
+  try {
+    const enabled = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_enabled'") as { value: string } | null
+    const chatId = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_chat_id'") as { value: string } | null
+    const webhookUrl = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_webhook_url'") as { value: string } | null
+    const webhookBody = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_webhook_body'") as { value: string } | null
+
+    res.json({
+      enabled: enabled?.value === '1',
+      chat_id: chatId?.value || '',
+      webhook_url: webhookUrl?.value || '',
+      webhook_body: webhookBody?.value || ''
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 保存 Komari 通知配置
+app.post('/api/settings/komari-notify', (req, res) => {
+  try {
+    const { enabled, chat_id, webhook_url, webhook_body } = req.body
+
+    run("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('komari_notify_enabled', ?, datetime('now'))", [enabled ? '1' : '0'])
+    run("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('komari_notify_chat_id', ?, datetime('now'))", [chat_id || ''])
+    run("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('komari_notify_webhook_url', ?, datetime('now'))", [webhook_url || ''])
+    run("INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('komari_notify_webhook_body', ?, datetime('now'))", [webhook_body || ''])
+
+    res.json({ success: true, message: '配置已保存' })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Komari 直接通知接收端点
+app.post('/api/komari-notify', async (req, res) => {
+  try {
+    const { message, title } = req.body
+    const text = message || title || ''
+
+    console.log(`📩 收到 Komari 通知: ${title || '(无标题)'} - ${message?.substring(0, 50) || '(无内容)'}...`)
+
+    // 检查是否启用
+    const enabledResult = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_enabled'") as { value: string } | null
+    if (enabledResult?.value !== '1') {
+      return res.json({ success: true, message: 'Komari 通知已禁用，忽略' })
+    }
+
+    // 获取 TG 群组 ID（全局配置）
+    const chatIdResult = queryFirst("SELECT value FROM system_settings WHERE key = 'komari_notify_chat_id'") as { value: string } | null
+    const chatId = chatIdResult?.value || ''
+
+    const timeStr = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+
+    // 判断是离线还是恢复（根据关键词）
+    const textLower = text.toLowerCase()
+    const isOffline = textLower.includes('离线') || textLower.includes('offline') || textLower.includes('down') || textLower.includes('掉线')
+    const isRecovery = textLower.includes('恢复') || textLower.includes('上线') || textLower.includes('online') || textLower.includes('recovery') || textLower.includes('up')
+
+    // 查找所有 Komari 类型的监控项
+    const monitors = queryAll(
+      "SELECT * FROM monitors WHERE check_type = 'komari' AND is_active = 1"
+    ) as Monitor[]
+
+    // 从消息中匹配服务器名称
+    let matchedMonitor: Monitor | null = null
+    let matchedServerName = ''
+
+    for (const monitor of monitors) {
+      // 使用 expected_keyword 作为服务器名称匹配（与现有逻辑一致）
+      const targetServers = monitor.expected_keyword
+        ? monitor.expected_keyword.split(',').map(s => s.trim().toLowerCase()).filter(s => s)
+        : []
+
+      if (targetServers.length === 0) continue
+
+      // 检查消息是否包含任何目标服务器名称
+      for (const serverName of targetServers) {
+        if (textLower.includes(serverName)) {
+          matchedMonitor = monitor
+          matchedServerName = serverName
+          break
+        }
+      }
+      if (matchedMonitor) break
+    }
+
+    if (isOffline) {
+      // ===== 离线通知 =====
+      console.log(`🔴 检测到离线通知${matchedMonitor ? ` (匹配监控: ${matchedMonitor.name}, 服务器: ${matchedServerName})` : ' (未匹配到监控)'}`)
+
+      // 1. 发送 TG 离线消息
+      if (chatId) {
+        const offlineMsg = [
+          `🔴 *Komari 离线通知*`,
+          ``,
+          `📋 *标题:* ${title || '(无)'}`,
+          `📝 *内容:* ${message || '(无)'}`,
+          matchedMonitor ? `🖥️ *匹配监控:* ${matchedMonitor.name}` : `⚠️ *未匹配到监控项*`,
+          ``,
+          `\`⏰ ${timeStr}\``
+        ].join('\n')
+        await sendTgMessage(chatId, offlineMsg)
+      }
+
+      // 2. 如果匹配到监控项，使用其 Webhook 配置
+      if (matchedMonitor && matchedMonitor.webhook_url) {
+        let webhookSuccess = false
+        let webhookError = ''
+
+        try {
+          // 构造 Webhook 请求
+          const variables = {
+            monitor_name: matchedMonitor.name,
+            monitor_url: matchedMonitor.url,
+            status: 'down',
+            error: message || '',
+            timestamp: timeStr,
+            response_time: '0',
+            status_code: '0'
+          }
+
+          let payload: any
+          if (matchedMonitor.webhook_body) {
+            // 使用监控项的自定义模板
+            const body = JSON.parse(matchedMonitor.webhook_body)
+            payload = processWebhookBody(body, variables)
+          } else {
+            // 默认格式
+            payload = {
+              monitor: matchedMonitor.name,
+              url: matchedMonitor.url,
+              status: 'down',
+              timestamp: timeStr,
+              message: `🚨 ${matchedMonitor.name} is DOWN! ${message?.substring(0, 100) || ''}`
+            }
+          }
+
+          let headers: Record<string, string> = {
+            'Content-Type': matchedMonitor.webhook_content_type || 'application/json'
+          }
+
+          if (matchedMonitor.webhook_headers) {
+            const customHeaders = JSON.parse(matchedMonitor.webhook_headers)
+            headers = { ...headers, ...customHeaders }
+          }
+
+          if (matchedMonitor.webhook_username) {
+            const encodedAuth = Buffer.from(`${matchedMonitor.webhook_username}:`).toString('base64')
+            headers['Authorization'] = `Basic ${encodedAuth}`
+          }
+
+          const response = await fetch(matchedMonitor.webhook_url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+          })
+
+          webhookSuccess = response.ok
+          if (!webhookSuccess) {
+            webhookError = `HTTP ${response.status}`
+          }
+        } catch (err: any) {
+          webhookError = err.message
+        }
+
+        // 3. 发送 TG Webhook 执行结果
+        if (chatId) {
+          const resultEmoji = webhookSuccess ? '✅' : '❌'
+          const resultText = webhookSuccess ? '成功' : `失败: ${webhookError}`
+          const webhookResultMsg = [
+            `📤 *Webhook 执行结果*`,
+            ``,
+            `🖥️ *监控项:* ${matchedMonitor.name}`,
+            `${resultEmoji} *状态:* ${resultText}`,
+            `🔗 *URL:* ${matchedMonitor.webhook_url.substring(0, 50)}...`,
+            ``,
+            `\`⏰ ${timeStr}\``
+          ].join('\n')
+          await sendTgMessage(chatId, webhookResultMsg)
+        }
+
+        console.log(`📤 Webhook 调用 (${matchedMonitor.name}): ${webhookSuccess ? '成功' : '失败 - ' + webhookError}`)
+      } else if (matchedMonitor) {
+        console.log(`⚠️ 监控项 ${matchedMonitor.name} 未配置 Webhook`)
+      }
+
+      res.json({
+        success: true,
+        type: 'offline',
+        matched_monitor: matchedMonitor?.name || null,
+        message: matchedMonitor ? `离线通知已处理 (${matchedMonitor.name})` : '离线通知已处理（未匹配到监控）'
+      })
+
+    } else if (isRecovery) {
+      // ===== 恢复通知 =====
+      console.log(`🟢 检测到恢复通知${matchedMonitor ? ` (匹配监控: ${matchedMonitor.name})` : ' (未匹配到监控)'}`)
+
+      // 仅发送 TG 恢复消息，不调用 Webhook
+      if (chatId) {
+        const recoveryMsg = [
+          `🟢 *Komari 恢复通知*`,
+          ``,
+          `📋 *标题:* ${title || '(无)'}`,
+          `📝 *内容:* ${message || '(无)'}`,
+          matchedMonitor ? `🖥️ *匹配监控:* ${matchedMonitor.name}` : ``,
+          ``,
+          `\`⏰ ${timeStr}\``
+        ].join('\n')
+        await sendTgMessage(chatId, recoveryMsg)
+      }
+
+      res.json({
+        success: true,
+        type: 'recovery',
+        matched_monitor: matchedMonitor?.name || null,
+        message: '恢复通知已处理（未触发 Webhook）'
+      })
+
+    } else {
+      // 未识别的通知类型
+      console.log('⚠️ 未识别的通知类型，仅转发到 TG')
+
+      if (chatId) {
+        const unknownMsg = [
+          `📨 *Komari 通知*`,
+          ``,
+          `📋 *标题:* ${title || '(无)'}`,
+          `📝 *内容:* ${message || '(无)'}`,
+          ``,
+          `\`⏰ ${timeStr}\``
+        ].join('\n')
+        await sendTgMessage(chatId, unknownMsg)
+      }
+
+      res.json({ success: true, type: 'unknown', message: '未识别的通知类型，已转发到 TG' })
+    }
+  } catch (error: any) {
+    console.error('❌ Komari 通知处理失败:', error)
+    res.status(500).json({ error: error.message })
+  }
 })
 
 

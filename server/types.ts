@@ -16,6 +16,7 @@ export interface Monitor {
   tg_server_name: string | null  // 用于消息匹配的服务器名称
   tg_offline_keywords: string | null
   tg_online_keywords: string | null
+  tg_notify_chat_id: string | null  // 用于 Komari 监控的 TG 群组通知
   webhook_url: string | null
   webhook_content_type: string
   webhook_headers: string | null

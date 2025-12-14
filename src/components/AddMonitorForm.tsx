@@ -25,6 +25,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
   const [tgServerName, setTgServerName] = useState('')
   const [tgOfflineKeywords, setTgOfflineKeywords] = useState('离线,offline,down,掉线')
   const [tgOnlineKeywords, setTgOnlineKeywords] = useState('上线,online,up,恢复')
+  const [tgNotifyChatId, setTgNotifyChatId] = useState('')  // Komari 监控用的 TG 通知群组
   const [webhookUrl, setWebhookUrl] = useState('')
   const [contentType, setContentType] = useState('application/json')
   const [headers, setHeaders] = useState('')
@@ -52,6 +53,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
       setTgServerName(editMonitor.tg_server_name || '')
       setTgOfflineKeywords(editMonitor.tg_offline_keywords || '离线,offline,down,掉线')
       setTgOnlineKeywords(editMonitor.tg_online_keywords || '上线,online,up,恢复')
+      setTgNotifyChatId(editMonitor.tg_notify_chat_id || '')
       setWebhookUrl(editMonitor.webhook_url || '')
       setContentType(editMonitor.webhook_content_type || 'application/json')
       setHeaders(editMonitor.webhook_headers || '')
@@ -125,6 +127,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
         tg_server_name: tgServerName.trim() || undefined,
         tg_offline_keywords: tgOfflineKeywords.trim() || undefined,
         tg_online_keywords: tgOnlineKeywords.trim() || undefined,
+        tg_notify_chat_id: tgNotifyChatId.trim() || undefined,
         webhook_url: webhookUrl.trim() || undefined,
         webhook_content_type: contentType,
         webhook_headers: Object.keys(parsedHeaders).length > 0 ? parsedHeaders : undefined,
@@ -166,6 +169,7 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
     setTgServerName('')
     setTgOfflineKeywords('离线,offline,down,掉线')
     setTgOnlineKeywords('上线,online,up,恢复')
+    setTgNotifyChatId('')
     setWebhookUrl('')
     setContentType('application/json')
     setHeaders('')
@@ -374,6 +378,17 @@ export default function AddMonitorForm({ onSuccess, onCancel, editMonitor }: Add
                 <strong>URL 格式：</strong>填写 Komari 面板的 API 地址，例如：<br />
                 <code style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: '4px' }}>https://your-domain.com/api/client</code>
               </span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="tgNotifyChatId">TG 通知群组 ID（可选）</label>
+              <input
+                id="tgNotifyChatId"
+                type="text"
+                value={tgNotifyChatId}
+                onChange={(e) => setTgNotifyChatId(e.target.value)}
+                placeholder="例如: -1001234567890"
+              />
+              <span className="form-hint">触发告警时同步发送消息到此 TG 群组，便于观察误报情况（需先在顶栏配置 Bot Token）</span>
             </div>
           </>
         )}

@@ -104,6 +104,9 @@ export async function initDatabase(): Promise<Database> {
   try {
     db.run(`ALTER TABLE monitors ADD COLUMN tg_online_keywords TEXT`)
   } catch (e) { }
+  try {
+    db.run(`ALTER TABLE monitors ADD COLUMN tg_notify_chat_id TEXT`)
+  } catch (e) { }
 
 
   db.run(`

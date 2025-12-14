@@ -17,6 +17,7 @@ export interface Monitor {
   tg_server_name: string | null
   tg_offline_keywords: string | null
   tg_online_keywords: string | null
+  tg_notify_chat_id: string | null
   webhook_url: string | null
   webhook_content_type: string
   webhook_headers: string | null
@@ -98,6 +99,7 @@ export async function createMonitor(monitor: {
   tg_server_name?: string
   tg_offline_keywords?: string
   tg_online_keywords?: string
+  tg_notify_chat_id?: string
   webhook_url?: string
   webhook_content_type?: string
   webhook_headers?: Record<string, string>
@@ -132,6 +134,7 @@ export async function updateMonitor(id: string, monitor: {
   tg_server_name?: string
   tg_offline_keywords?: string
   tg_online_keywords?: string
+  tg_notify_chat_id?: string
   webhook_url?: string
   webhook_content_type?: string
   webhook_headers?: Record<string, string>
@@ -222,5 +225,24 @@ export async function testTelegramChat(chatId: string): Promise<{ success: boole
   return fetchAPI('/api/settings/telegram/test-chat', {
     method: 'POST',
     body: JSON.stringify({ chat_id: chatId }),
+  })
+}
+
+// Komari 通知配置
+export interface KomariNotifySettings {
+  enabled: boolean
+  chat_id: string
+  webhook_url: string
+  webhook_body: string
+}
+
+export async function getKomariNotifySettings(): Promise<KomariNotifySettings> {
+  return fetchAPI('/api/settings/komari-notify')
+}
+
+export async function saveKomariNotifySettings(settings: Partial<KomariNotifySettings>): Promise<{ success: boolean; message: string }> {
+  return fetchAPI('/api/settings/komari-notify', {
+    method: 'POST',
+    body: JSON.stringify(settings),
   })
 }
