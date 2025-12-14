@@ -96,15 +96,22 @@ docker run -d -p 3000:3000 -v ./data:/app/data uptime-monitor
    - **离线关键词**：如 `Offline,down,离线`
    - **上线关键词**：如 `Online,up,上线`
 
-### SSE 刷新通知服务
+### SSE/轮询刷新通知服务
 
-内置 SSE 服务，可供浏览器插件接收实时刷新通知：
+内置刷新通知服务，可供浏览器插件接收实时刷新通知：
 
 | 端点 | 方法 | 用途 |
 |------|------|------|
-| `/api/sse/refresh` | GET | 浏览器插件连接保持长连接 |
+| `/poll` | GET | 轮询获取刷新通知（推荐） |
+| `/api/sse/refresh` | GET | SSE 长连接方式 |
 | `/api/webhook/refresh` | POST | 触发刷新通知 `{"url": "..."}` |
 | `/api/sse/status` | GET | 查看连接的客户端数量 |
+
+**浏览器插件配置**：
+1. 插件服务器地址填写：`http://你的服务器:3000`
+2. 面板监控项 Webhook 填写：`http://你的服务器:3000/api/webhook/refresh`
+3. 面板监控项 Webhook Body 填写：`{"url": "要刷新的页面URL"}`
+
 
 ### 配置 Webhook 通知
 
