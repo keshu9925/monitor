@@ -66,10 +66,10 @@ app.post('/api/monitors', async (req, res) => {
 
     const monitor = queryFirst('SELECT * FROM monitors WHERE id = ?', [id]) as Monitor
 
-    // 创建后立即检查一次（Telegram 类型插入默认正常状态）
+    // 创建后立即检查一次（Telegram 和 Komari Webhook 类型插入默认正常状态）
     if (monitor) {
-      if (monitor.check_type === 'telegram') {
-        // Telegram 类型：插入一条默认正常状态的记录
+      if (monitor.check_type === 'telegram' || monitor.check_type === 'komari_webhook') {
+        // 被动接收类型：插入一条默认正常状态的记录
         run(
           `INSERT INTO monitor_checks (monitor_id, status, response_time, status_code, error_message, checked_at)
            VALUES (?, 'up', 0, 0, NULL, datetime('now'))`,
